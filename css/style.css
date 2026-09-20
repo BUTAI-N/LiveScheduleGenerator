@@ -191,7 +191,6 @@ input[type="color"] { width: 48px; height: 44px; padding: 2px; border: 1px solid
 .layout-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
 .lc-emoji { font-size: 22px; }
 .lc-label { font-weight: 800; }
-.lc-desc { font-size: 11px; color: var(--muted); }
 
 /* ---- カラー ---- */
 .swatches { display: flex; flex-wrap: wrap; gap: 10px; }

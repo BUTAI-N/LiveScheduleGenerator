@@ -29,6 +29,7 @@
     size: '1080x1920',
     weekdayLang: 'ja',   // 'ja' | 'en'
     koro: 'both',        // 「頃」の付け方: 'both' | 'start' | 'none'
+    hourStyle: 'hm',     // 時間の表記: 'hm'（20:00）| 'hour'（分が00なら 20時）
     title: '配信スケジュール',
     subtitle: '',
     note: '',
@@ -93,6 +94,7 @@
     // 旧設定の 'auto' もここで日本語に寄せる
     if (!['ja', 'en'].includes(s.weekdayLang)) s.weekdayLang = 'ja';
     if (!['both', 'start', 'none'].includes(s.koro)) s.koro = 'both';
+    if (!['hm', 'hour'].includes(s.hourStyle)) s.hourStyle = 'hm';
     s.days = clamp(parseInt(s.days, 10) || 7, 1, 7);
     s.weekStart = [0, 1, 2, 3, 4, 5, 6].includes(Number(s.weekStart)) ? Number(s.weekStart) : 1;
     s.weekOffset = 0;
@@ -195,6 +197,7 @@
       offLabel: state.offLabel.trim() || 'おやすみ',
       weekdayLang: state.weekdayLang,
       koro: state.koro,
+      hourStyle: state.hourStyle,
     };
   }
 
@@ -343,10 +346,17 @@
       b.type = 'button';
       b.className = 'layout-card' + (l.id === state.layout ? ' active' : '');
       b.dataset.id = l.id;
-      b.innerHTML = `<span class="lc-emoji">${l.emoji}</span><span class="lc-label">${l.label}</span><span class="lc-desc">${l.desc}</span>`;
+      b.innerHTML = `<span class="lc-emoji">${l.emoji}</span><span class="lc-label">${l.label}</span>`;
       grid.appendChild(b);
     });
     $('#layoutName').textContent = currentLayout().label;
+  }
+  function renderHourStyleUI() {
+    $$('#hourStyleSeg button').forEach((b) => b.classList.toggle('active', b.dataset.v === state.hourStyle));
+    const hourOnly = state.hourStyle === 'hour';
+    const a = R.timeLabel({ start: '20:00', end: '22:00' }, state.koro, hourOnly);
+    const b = R.timeLabel({ start: '20:30', end: '' }, state.koro, hourOnly);
+    $('#hourStyleSample').textContent = `例：${a} ／ ${b}`;
   }
   function renderWeekdayUI() {
     $$('#wdSeg button').forEach((b) => b.classList.toggle('active', b.dataset.v === state.weekdayLang));
@@ -415,8 +425,10 @@
     $('#note').value = state.note;
     $('#offLabel').value = state.offLabel;
     $$('#koroSeg button').forEach((b) => b.classList.toggle('active', b.dataset.v === state.koro));
-    const sample = { start: '21:00', end: '23:00', memo: '' };
-    $('#koroSample').textContent = `例：${R.timeLabel({ start: '21:00', end: '' }, state.koro)} ／ ${R.timeLabel(sample, state.koro)}`;
+    const hourOnly = state.hourStyle === 'hour';
+    const a = R.timeLabel({ start: '21:00', end: '' }, state.koro, hourOnly);
+    const b = R.timeLabel({ start: '21:00', end: '23:00' }, state.koro, hourOnly);
+    $('#koroSample').textContent = `例：${a} ／ ${b}`;
   }
   function renderSizeUI() {
     $('#sizeSel').value = state.size;
@@ -428,7 +440,7 @@
   }
 
   function renderAll() {
-    renderPeriodUI(); renderDayList(); renderLayoutUI(); renderWeekdayUI();
+    renderPeriodUI(); renderDayList(); renderLayoutUI(); renderHourStyleUI(); renderWeekdayUI();
     renderColorUI(); renderFontUI(); renderTextUI(); renderSizeUI();
   }
   // 期間が変わったとき（入力欄の作り直しが必要）
@@ -584,6 +596,7 @@
     // デザイン
     $('#layoutGrid').addEventListener('click', (ev) => { const b = ev.target.closest('.layout-card'); if (!b) return; state.layout = b.dataset.id; renderLayoutUI(); save(); requestRender(); });
     $('#wdSeg').addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b) return; state.weekdayLang = b.dataset.v; renderWeekdayUI(); save(); requestRender(); });
+    $('#hourStyleSeg').addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b) return; state.hourStyle = b.dataset.v; renderHourStyleUI(); renderTextUI(); save(); requestRender(); });
     $('#colorGroups').addEventListener('click', (ev) => { const b = ev.target.closest('.swatch'); if (!b) return; state.color = b.dataset.id; renderColorUI(); save(); requestRender(); });
     [['ccBg', 'bg'], ['ccAccent', 'accent'], ['ccText', 'text']].forEach(([id, key]) => {
       $('#' + id).addEventListener('input', (ev) => {
@@ -599,7 +612,7 @@
     ['title', 'subtitle', 'note', 'offLabel'].forEach((key) => {
       $('#' + key).addEventListener('input', (ev) => { state[key] = ev.target.value; save(); requestRender(); });
     });
-    $('#koroSeg').addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b) return; state.koro = b.dataset.v; renderTextUI(); save(); requestRender(); });
+    $('#koroSeg').addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b) return; state.koro = b.dataset.v; renderTextUI(); renderHourStyleUI(); save(); requestRender(); });
 
     // プレビュー / 書き出し
     $('#showSafeZone').addEventListener('change', (ev) => { state.showSafeZone = ev.target.checked; save(); requestRender(); });
