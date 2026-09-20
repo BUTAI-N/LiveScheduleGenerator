@@ -1,0 +1,13 @@
+# Claude Code / エディタのローカル設定
+.claude/
+.vscode/
+.idea/
+
+# OS が作る不要ファイル
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 作業用
+*.log
+node_modules/

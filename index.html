@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fe2c55">
+<title>BUTAI LIVE Schedule｜配信スケジュール画像メーカー</title>
+<meta name="description" content="TikTokストーリーズ向け（1080×1920）の配信スケジュール画像をブラウザだけで作成。かわいい／かっこいい／シンプルの3レイアウト、14色のカラープリセット、日本語フォント19種。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="dot"></span>BUTAI LIVE Schedule</div>
+  <button class="btn small ghost" id="resetBtn" type="button">設定をリセット</button>
+</header>
+
+<main class="app">
+  <!-- プレビュー -->
+  <aside class="preview-col">
+    <div class="stage-wrap">
+      <div id="stage" class="stage" style="--ar: 1080 / 1920; --ar-num: 0.5625;">
+        <canvas id="canvas" width="1080" height="1920" aria-label="スケジュール画像のプレビュー"></canvas>
+        <div id="safeZone" class="safezone" hidden>
+          <div id="szTop" class="sz sz-top"><span>TikTokのUIが重なる目安（上）</span></div>
+          <div id="szBottom" class="sz sz-bottom"><span>TikTokのUIが重なる目安（下）</span></div>
+          <div id="szRight" class="sz sz-right"><span>右側アイコン</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="preview-tools card">
+      <label class="check"><input type="checkbox" id="showSafeZone"><span>セーフゾーンを表示（書き出し画像には含まれません）</span></label>
+      <label class="field-row"><span>書き出しサイズ</span><select id="sizeSel"></select></label>
+      <p class="hint" id="sizeNote"></p>
+      <button class="btn primary big" id="exportBtn" type="button">画像を保存（PNG）</button>
+      <p class="hint" id="filenameHint"></p>
+    </div>
+  </aside>
+
+  <!-- コントロール -->
+  <div class="controls">
+    <section class="card" id="sec-period">
+      <h2><span class="num">1</span>期間</h2>
+      <p class="today">今日：<strong id="todayLabel"></strong></p>
+      <div class="seg" id="modeSeg">
+        <button type="button" data-mode="fromToday">今日から◯日間</button>
+        <button type="button" data-mode="week">1週間（7日）</button>
+      </div>
+      <div id="daysOpts" class="opts">
+        <p class="label">日数（今日を含めて最大7日）</p>
+        <div class="seg" id="daysSeg"></div>
+      </div>
+      <div id="weekOpts" class="opts" hidden>
+        <label class="field-row"><span>曜日のはじまり</span><select id="weekStart"></select></label>
+        <div class="weeknav">
+          <button type="button" class="btn small" id="prevWeek">‹ 前の週</button>
+          <span class="week-label" id="weekLabel">今週</span>
+          <button type="button" class="btn small" id="nextWeek">次の週 ›</button>
+          <button type="button" class="btn small ghost" id="thisWeek" hidden>今週に戻る</button>
+        </div>
+      </div>
+      <p class="range"><span id="rangeLabel"></span></p>
+    </section>
+
+    <section class="card" id="sec-schedule">
+      <h2><span class="num">2</span>スケジュール入力</h2>
+      <div class="bulk">
+        <p class="label">まとめて入力（各日の1枠目に入ります）</p>
+        <div class="bulk-times">
+          <span class="tfield"><span>開始</span><span id="bulkStart"></span></span>
+          <span class="tilde">～</span>
+          <span class="tfield"><span>終了（任意）</span><span id="bulkEnd"></span></span>
+        </div>
+        <div class="bulk-actions">
+          <button type="button" class="btn small" id="applyAll">全日に適用</button>
+          <button type="button" class="btn small" id="copyPrev">前の週からコピー</button>
+          <button type="button" class="btn small danger" id="clearAll">この期間をクリア</button>
+        </div>
+      </div>
+      <div id="dayList" class="day-list"></div>
+      <p class="hint">分は10分刻み。24〜29時は深夜（翌0〜5時）の表記です。終了が空欄のときは「21:00頃～」のように表示されます。1日に最大3枠（朝配信・夜配信など）まで追加できます。</p>
+    </section>
+
+    <section class="card" id="sec-design">
+      <h2><span class="num">3</span>デザイン</h2>
+
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">🖼</span>レイアウト</span><span class="sub-value" id="layoutName"></span></div>
+        <div class="sub-body">
+          <div class="layout-grid" id="layoutGrid"></div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">📅</span>曜日の表記</span><span class="sub-value" id="wdName"></span></div>
+        <div class="sub-body">
+          <div class="seg" id="wdSeg">
+            <button type="button" data-v="auto">自動</button>
+            <button type="button" data-v="ja">日本語（月・火…）</button>
+            <button type="button" data-v="en">英語（MON・TUE…）</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">🎨</span>カラー</span><span class="sub-value" id="colorName"></span></div>
+        <div class="sub-body">
+          <div id="colorGroups"></div>
+          <div id="customColors" class="custom-colors" hidden>
+            <label><span>背景</span><input type="color" id="ccBg"></label>
+            <label><span>アクセント</span><input type="color" id="ccAccent"></label>
+            <label><span>文字</span><input type="color" id="ccText"></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">🔤</span>フォント</span><span class="sub-value" id="fontDesc"></span></div>
+        <div class="sub-body">
+          <div id="fontGroups"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="sec-text">
+      <h2><span class="num">4</span>テキスト</h2>
+      <div class="text-grid">
+        <label><span>タイトル</span><input type="text" id="title" maxlength="24"></label>
+        <label><span>名前 / ID（任意）</span><input type="text" id="subtitle" maxlength="30" placeholder="例：@butai_live"></label>
+        <label><span>休みの日の表記</span><input type="text" id="offLabel" maxlength="10" placeholder="おやすみ"></label>
+        <label><span>下部の一言（任意）</span><input type="text" id="note" maxlength="40" placeholder="例：時間は変更になる場合があります"></label>
+      </div>
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">🕒</span>時間の「頃」</span><span class="sub-value" id="koroSample"></span></div>
+        <div class="sub-body">
+          <div class="seg" id="koroSeg">
+            <button type="button" data-v="both">開始と終了に付ける</button>
+            <button type="button" data-v="start">開始だけに付ける</button>
+            <button type="button" data-v="none">付けない</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footnote">期間・入力内容・デザイン・テキストの設定はすべてこのブラウザに自動保存されます。</p>
+  </div>
+</main>
+
+<div class="actionbar">
+  <button type="button" class="btn ghost" id="toTop">↑ プレビュー</button>
+  <button type="button" class="btn primary" id="exportBtn2">画像を保存（PNG）</button>
+</div>
+
+<div class="modal" id="exportModal" hidden>
+  <div class="modal-body" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">画像を書き出しました</h3>
+    <img id="exportImg" alt="書き出したスケジュール画像">
+    <p class="filename" id="exportName"></p>
+    <div class="modal-actions">
+      <a class="btn primary" id="downloadLink" download>ダウンロード</a>
+      <button type="button" class="btn" id="shareBtn" hidden>共有 / 写真に保存</button>
+      <button type="button" class="btn ghost" id="closeModal">閉じる</button>
+    </div>
+    <p class="hint">iPhone / iPad では、画像を長押し →「"写真"に追加」でも保存できます。</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="js/presets.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
