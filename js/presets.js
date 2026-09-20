@@ -34,9 +34,7 @@
     { id: 'mochiy-pop',    family: 'Mochiy Pop One',    weight: 400, group: 'round',  label: 'モッチーポップ',  desc: 'ぽってり太めのポップ体' },
     { id: 'kosugi-maru',   family: 'Kosugi Maru',       weight: 400, group: 'round',  label: '小杉丸ゴシック',  desc: '定番の丸ゴ' },
     { id: 'kiwi-maru',     family: 'Kiwi Maru',         weight: 500, group: 'round',  label: 'キウイ丸',        desc: 'レトロかわいい' },
-    { id: 'tsukimi',       family: 'Tsukimi Rounded',   weight: 700, group: 'round',  label: 'つきみ丸',        desc: 'ふんわり丸め' },
     { id: 'potta',         family: 'Potta One',         weight: 400, group: 'round',  label: 'ポッタ',          desc: 'ぽってり手書き風' },
-    { id: 'cherry-bomb',   family: 'Cherry Bomb One',   weight: 400, group: 'round',  label: 'チェリーボム',    desc: 'コミカルで元気' },
     { id: 'yusei-magic',   family: 'Yusei Magic',       weight: 400, group: 'round',  label: '油性マジック',    desc: 'マーカー手書き風' },
     // シンプル
     { id: 'noto-sans', family: 'Noto Sans JP',         weight: 900, group: 'simple', label: 'Noto Sans JP',   desc: '定番ゴシック・極太' },
