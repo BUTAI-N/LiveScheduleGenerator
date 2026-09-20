@@ -158,6 +158,58 @@
   function slotCount(e) { return e.off ? 1 : Math.max(1, activeSlots(e).length); }
   function rowWeights(days) { return days.map((d) => 1 + 0.55 * (slotCount(d.entry) - 1)); }
 
+  // 曜日（上）＋日付（下）を縦に並べて描き、コンテンツ領域の左端になる x を返す
+  // style: 'circle'（丸バッジ） | 'tag'（斜めタグ） | 'text'（文字のみ）
+  function drawDayLabel(g, day, leftX, cy, rh, s, style) {
+    const { ctx, u, pal, font } = g;
+    const badge = day.weekend ? pal.accent2 : pal.accent;
+    const dim = day.entry.off;
+
+    const wdBoxH = Math.max(Math.min(rh * 0.42, 66 * u * s), 30 * u);
+    const dateSize = Math.max(Math.min(rh * 0.30, 54 * u * s), 22 * u);
+    const gap = 5 * u;
+    const top = cy - (wdBoxH + gap + dateSize) / 2;
+
+    ctx.font = fontString(font, dateSize);
+    const dateW = ctx.measureText(day.dateText).width;
+    const wdSize = g.lang === 'en' ? wdBoxH * 0.46 : wdBoxH * 0.62;
+    ctx.font = fontString(font, wdSize);
+    const wdBoxW = style === 'text'
+      ? ctx.measureText(day.wd).width
+      : Math.max(wdBoxH, ctx.measureText(day.wd).width + 22 * u);
+
+    const colW = Math.max(wdBoxW, dateW);
+    const cx = leftX + colW / 2;
+    const wdCy = top + wdBoxH / 2;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 曜日
+    if (style === 'circle') {
+      ctx.fillStyle = dim ? rgba(badge, 0.45) : badge;
+      if (wdBoxW <= wdBoxH + 1) { ctx.beginPath(); ctx.arc(cx, wdCy, wdBoxH / 2, 0, Math.PI * 2); ctx.fill(); }
+      else { roundRect(ctx, cx - wdBoxW / 2, top, wdBoxW, wdBoxH, wdBoxH / 2); ctx.fill(); }
+      ctx.fillStyle = onColor(badge);
+    } else if (style === 'tag') {
+      ctx.fillStyle = dim ? rgba(badge, 0.5) : badge;
+      skewRect(ctx, cx - wdBoxW / 2, top, wdBoxW, wdBoxH, 7 * u);
+      ctx.fill();
+      ctx.fillStyle = onColor(badge);
+    } else {
+      ctx.fillStyle = dim ? rgba(badge, 0.6) : badge;
+    }
+    ctx.font = fontString(font, wdSize);
+    ctx.fillText(day.wd, cx, wdCy + wdSize * 0.05);
+
+    // 日付
+    ctx.font = fontString(font, dateSize);
+    ctx.fillStyle = dim ? pal.sub : pal.text;
+    ctx.fillText(day.dateText, cx, top + wdBoxH + gap + dateSize / 2 + dateSize * 0.05);
+
+    return leftX + colW;
+  }
+
   // 時間＋内容（または「休み」「未定」）を右揃えで描く
   function drawTimeBlock(g, e, left, right, cy, rh, s) {
     const { ctx, u, pal, font, model } = g;
@@ -167,14 +219,14 @@
     ctx.textBaseline = 'middle';
 
     if (e.off) {
-      const size = fitSize(ctx, model.offLabel, areaW, 50 * u * s, 22 * u, font);
+      const size = fitSize(ctx, model.offLabel, areaW, 58 * u * s, 22 * u, font);
       ctx.fillStyle = pal.sub;
       ctx.fillText(model.offLabel, x, cy + size * 0.04);
       return;
     }
     const slots = activeSlots(e);
     if (slots.length === 0) {
-      const size = 40 * u * s;
+      const size = 44 * u * s;
       ctx.font = fontString(font, size);
       ctx.fillStyle = pal.sub;
       ctx.fillText('未定', x, cy + size * 0.04);
@@ -186,9 +238,9 @@
       const time = timeLabel(slots[0], model.koro);
       const memo = (slots[0].memo || '').trim();
       if (time && memo) {
-        const tSize = fitSize(ctx, time, areaW, 60 * u * s, 26 * u, font);
-        const mSize = Math.max(20 * u, Math.min(31 * u * s, tSize * 0.55));
-        const gap = 6 * u;
+        const tSize = fitSize(ctx, time, areaW, 72 * u * s, 26 * u, font);
+        const mSize = Math.max(22 * u, Math.min(38 * u * s, tSize * 0.55));
+        const gap = 7 * u;
         const totalH = tSize + gap + mSize;
         const tY = cy - totalH / 2 + tSize / 2;
         const mY = tY + tSize / 2 + gap + mSize / 2;
@@ -199,11 +251,11 @@
         ctx.fillStyle = pal.sub;
         ctx.fillText(ellipsize(ctx, memo, areaW), x, mY + mSize * 0.04);
       } else if (time) {
-        const tSize = fitSize(ctx, time, areaW, 64 * u * s, 26 * u, font);
+        const tSize = fitSize(ctx, time, areaW, 78 * u * s, 26 * u, font);
         ctx.fillStyle = pal.text;
         ctx.fillText(time, x, cy + tSize * 0.04);
       } else {
-        const mSize = fitSize(ctx, memo, areaW, 44 * u * s, 22 * u, font);
+        const mSize = fitSize(ctx, memo, areaW, 54 * u * s, 22 * u, font);
         ctx.fillStyle = pal.text;
         ctx.fillText(ellipsize(ctx, memo, areaW), x, cy + mSize * 0.04);
       }
@@ -214,23 +266,23 @@
     const n = slots.length;
     const pad = 8 * u;
     const lineH = (rh - pad * 2) / n;
-    const tBase = clamp(lineH * 0.62, 18 * u, 50 * u * s);
+    const tBase = clamp(lineH * 0.66, 20 * u, 58 * u * s);
     slots.forEach((sl, i) => {
       const ly = cy - rh / 2 + pad + lineH * (i + 0.5);
       const time = timeLabel(sl, model.koro);
       const memo = (sl.memo || '').trim();
       let tw = 0, tSize = tBase;
       if (time) {
-        tSize = fitSize(ctx, time, memo ? areaW * 0.72 : areaW, tBase, 16 * u, font);
+        tSize = fitSize(ctx, time, memo ? areaW * 0.74 : areaW, tBase, 18 * u, font);
         tw = ctx.measureText(time).width;
         ctx.fillStyle = pal.text;
         ctx.fillText(time, x, ly + tSize * 0.04);
       }
       if (memo) {
-        const mSize = Math.max(16 * u, tBase * 0.6);
+        const mSize = Math.max(18 * u, tBase * 0.62);
         ctx.font = fontString(font, mSize);
         ctx.fillStyle = time ? pal.sub : pal.text;
-        const gapX = time ? 14 * u : 0;
+        const gapX = time ? 16 * u : 0;
         ctx.fillText(ellipsize(ctx, memo, areaW - tw - gapX), x - tw - gapX, ly + mSize * 0.04);
       }
     });
@@ -348,30 +400,12 @@
       ctx.fill();
       ctx.restore();
 
-      // 曜日バッジ（丸）
-      const cr = Math.min(rh * 0.34, 54 * u * s);
-      const cx = rx + 34 * u + cr, cy = ry + rh / 2;
-      const badge = day.weekend ? pal.accent2 : pal.accent;
-      ctx.fillStyle = badge;
-      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = onColor(badge);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const wdSize = g.lang === 'en' ? cr * 0.62 : cr * 1.05;
-      ctx.font = fontString(font, wdSize);
-      ctx.fillText(day.wd, cx, cy + wdSize * 0.05);
-
-      // 日付
-      const dateSize = 44 * u * s;
-      ctx.font = fontString(font, dateSize);
-      ctx.fillStyle = pal.text;
-      ctx.textAlign = 'left';
-      const dateX = cx + cr + 24 * u;
-      ctx.fillText(day.dateText, dateX, cy + dateSize * 0.05);
-      const dateW = ctx.measureText(day.dateText).width;
+      // 曜日（上）＋日付（下）
+      const cy = ry + rh / 2;
+      const labelRight = drawDayLabel(g, day, rx + 32 * u, cy, rh, s, 'circle');
 
       // 時間・内容
-      drawTimeBlock(g, e, dateX + dateW + 24 * u, rx + rw - 38 * u, cy, rh, s);
+      drawTimeBlock(g, e, labelRight + 26 * u, rx + rw - 38 * u, cy, rh, s);
     });
 
     // ---- フッター ----
@@ -511,29 +545,11 @@
       ctx.fill();
       ctx.restore();
 
+      // 曜日（上）＋日付（下）
       const cy = ry + rh / 2;
-      const dateSize = 58 * u * s;
-      const wdSize = 28 * u * s;
-      const leftX = rx + skew + 34 * u;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.font = fontString(font, dateSize);
-      ctx.fillStyle = pal.text;
-      ctx.fillText(day.dateText, leftX, cy + dateSize * 0.05);
-      const dateW = ctx.measureText(day.dateText).width;
+      const labelRight = drawDayLabel(g, day, rx + skew + 28 * u, cy, rh, s, 'tag');
 
-      // 曜日タグ
-      ctx.font = fontString(font, wdSize);
-      const wdW = ctx.measureText(day.wd).width;
-      const bx = leftX + dateW + 16 * u, bh = wdSize * 1.5, bw = wdW + 26 * u, by = cy - bh / 2;
-      ctx.fillStyle = badge;
-      skewRect(ctx, bx, by, bw, bh, 8 * u);
-      ctx.fill();
-      ctx.fillStyle = onColor(badge);
-      ctx.textAlign = 'center';
-      ctx.fillText(day.wd, bx + bw / 2, cy + wdSize * 0.06);
-
-      drawTimeBlock(g, e, bx + bw + 22 * u, rx + rw - skew - 30 * u, cy, rh, s);
+      drawTimeBlock(g, e, labelRight + 26 * u, rx + rw - skew - 30 * u, cy, rh, s);
     });
 
     if (model.note) {
@@ -614,27 +630,10 @@
       ctx.fillStyle = line;
       ctx.fillRect(padX, ry + rh - 2 * u, contentW, 2 * u);
 
-      const badge = day.weekend ? pal.accent2 : pal.accent;
-      const cr = Math.min(rh * 0.3, 40 * u * s);
-      const cx = padX + cr + 4 * u;
-      ctx.fillStyle = e.off ? rgba(badge, 0.45) : badge;
-      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = onColor(badge);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const wdSize = g.lang === 'en' ? cr * 0.6 : cr * 1.05;
-      ctx.font = fontString(font, wdSize);
-      ctx.fillText(day.wd, cx, cy + wdSize * 0.05);
+      // 曜日（上）＋日付（下）
+      const labelRight = drawDayLabel(g, day, padX + 6 * u, cy, rh, s, 'text');
 
-      const dateSize = 46 * u * s;
-      ctx.font = fontString(font, dateSize);
-      ctx.fillStyle = e.off ? pal.sub : pal.text;
-      ctx.textAlign = 'left';
-      const dateX = cx + cr + 22 * u;
-      ctx.fillText(day.dateText, dateX, cy + dateSize * 0.05);
-      const dateW = ctx.measureText(day.dateText).width;
-
-      drawTimeBlock(g, e, dateX + dateW + 24 * u, padX + contentW - 6 * u, cy, rh, s);
+      drawTimeBlock(g, e, labelRight + 26 * u, padX + contentW - 6 * u, cy, rh, s);
     });
 
     if (model.note) {
@@ -655,12 +654,15 @@
                title, subtitle, note, offLabel, weekdayLang }
      ============================================================ */
   function resolveLang(model) {
-    if (model.weekdayLang === 'ja' || model.weekdayLang === 'en') return model.weekdayLang;
-    return model.layout === 'cool' ? 'en' : 'ja';
+    return model.weekdayLang === 'en' ? 'en' : 'ja';
   }
 
-  function buildRangeText(days, layout, WD) {
-    const f = (d) => (layout === 'cool' ? `${d.m}.${d.d} ${WD[d.dow]}` : `${d.m}/${d.d}(${WD[d.dow]})`);
+  function buildRangeText(days, layout, WD, lang) {
+    // 英語の曜日は空白区切り、日本語はカッコ書き（「9.27 日」だと読みにくいため）
+    const f = (d) => {
+      const date = layout === 'cool' ? `${d.m}.${d.d}` : `${d.m}/${d.d}`;
+      return lang === 'en' ? `${date} ${WD[d.dow]}` : `${date}(${WD[d.dow]})`;
+    };
     if (days.length === 1) return f(days[0]);
     return `${f(days[0])} ${layout === 'cool' ? '-' : '〜'} ${f(days[days.length - 1])}`;
   }
@@ -693,7 +695,7 @@
       padX: (story ? 84 : 64) * u,
       hs: story ? 1 : 0.82, // ヘッダー文字の縮小率（正方形などで）
       dark: isDark(model.pal.bg[0]),
-      rangeText: buildRangeText(days, model.layout, WD),
+      rangeText: buildRangeText(days, model.layout, WD, lang),
     };
     (RENDERERS[model.layout] || renderSimple)(g);
   }

@@ -10,7 +10,7 @@
   const { isDark, mix, clamp } = R.util;
 
   const STORAGE_KEY = 'butai_live_schedule_v1';
-  const VERSION = 2;
+  const VERSION = 3;
   const MAX_SLOTS = 3;                                    // 1日あたりの配信枠の上限
   const HOURS = Array.from({ length: 30 }, (_, i) => i);  // 0〜29時（24以降は深夜＝翌日の時刻）
   const MINUTES = ['00', '10', '20', '30', '40', '50'];   // 10分刻み
@@ -25,7 +25,7 @@
     color: 'tiktok-pastel',
     font: 'mplus-rounded',
     size: '1080x1920',
-    weekdayLang: 'auto', // 'auto' | 'ja' | 'en'
+    weekdayLang: 'ja',   // 'ja' | 'en'
     koro: 'both',        // 「頃」の付け方: 'both' | 'start' | 'none'
     title: '配信スケジュール',
     subtitle: '',
@@ -88,7 +88,8 @@
     if (!SIZES.some((z) => z.id === s.size)) s.size = DEFAULTS.size;
     if (!LAYOUTS.some((l) => l.id === s.layout)) s.layout = DEFAULTS.layout;
     if (!['week', 'fromToday'].includes(s.mode)) s.mode = DEFAULTS.mode;
-    if (!['auto', 'ja', 'en'].includes(s.weekdayLang)) s.weekdayLang = 'auto';
+    // 旧設定の 'auto' もここで日本語に寄せる
+    if (!['ja', 'en'].includes(s.weekdayLang)) s.weekdayLang = 'ja';
     if (!['both', 'start', 'none'].includes(s.koro)) s.koro = 'both';
     s.days = clamp(parseInt(s.days, 10) || 7, 1, 7);
     s.weekStart = [0, 1, 2, 3, 4, 5, 6].includes(Number(s.weekStart)) ? Number(s.weekStart) : 1;
@@ -299,7 +300,7 @@
       </div>
       <div class="slots">
         ${e.slots.map((sl, i) => slotHTML(sl, i, e.slots.length)).join('')}
-        ${e.slots.length < MAX_SLOTS ? '<button type="button" class="btn small ghost slot-add">＋ 枠を追加（朝配信・夜配信など）</button>' : ''}
+        ${e.slots.length < MAX_SLOTS ? '<button type="button" class="btn small ghost slot-add">＋配信枠を追加</button>' : ''}
       </div>`;
   }
   function renderDayList() {
@@ -334,9 +335,10 @@
       grid.appendChild(b);
     });
     $('#layoutName').textContent = currentLayout().label;
+  }
+  function renderWeekdayUI() {
     $$('#wdSeg button').forEach((b) => b.classList.toggle('active', b.dataset.v === state.weekdayLang));
-    const auto = state.layout === 'cool' ? '英語' : '日本語';
-    $('#wdName').textContent = state.weekdayLang === 'auto' ? `自動（${auto}）` : state.weekdayLang === 'ja' ? '日本語' : '英語';
+    $('#wdName').textContent = state.weekdayLang === 'en' ? '英語' : '日本語';
   }
   function applySwatchStyle(b, c) {
     b.style.setProperty('--c0', c.bg[0]);
@@ -414,7 +416,8 @@
   }
 
   function renderAll() {
-    renderPeriodUI(); renderDayList(); renderLayoutUI(); renderColorUI(); renderFontUI(); renderTextUI(); renderSizeUI();
+    renderPeriodUI(); renderDayList(); renderLayoutUI(); renderWeekdayUI();
+    renderColorUI(); renderFontUI(); renderTextUI(); renderSizeUI();
   }
   // 期間が変わったとき（入力欄の作り直しが必要）
   function periodChanged() { renderPeriodUI(); renderDayList(); save(); requestRender(); }
@@ -434,8 +437,6 @@
     }
     const ss = $('#sizeSel');
     SIZES.forEach((z) => { const o = document.createElement('option'); o.value = z.id; o.textContent = `${z.label}　${z.note}`; ss.appendChild(o); });
-    $('#bulkStart').innerHTML = tpHTML('tp-start', '21:00');
-    $('#bulkEnd').innerHTML = tpHTML('tp-end', '');
   }
 
   /* ---------- 書き出し ---------- */
@@ -537,14 +538,6 @@
       }
     });
 
-    // 一括入力
-    $('.bulk').addEventListener('change', (ev) => { const tp = ev.target.closest('.tp'); if (tp) tpRead(tp); });
-    $('#applyAll').addEventListener('click', () => {
-      const s = tpRead($('#bulkStart .tp')), e = tpRead($('#bulkEnd .tp'));
-      if (!s) { toast('開始時間を選んでください'); return; }
-      buildDays().forEach((d) => { const en = getEntry(d.key); en.slots[0].start = s; en.slots[0].end = e; setEntry(d.key, en); });
-      renderDayList(); save(); requestRender(); toast('全日の1枠目に適用しました');
-    });
     $('#copyPrev').addEventListener('click', () => {
       let n = 0;
       buildDays().forEach((d) => {
@@ -562,7 +555,7 @@
 
     // デザイン
     $('#layoutGrid').addEventListener('click', (ev) => { const b = ev.target.closest('.layout-card'); if (!b) return; state.layout = b.dataset.id; renderLayoutUI(); save(); requestRender(); });
-    $('#wdSeg').addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b) return; state.weekdayLang = b.dataset.v; renderLayoutUI(); save(); requestRender(); });
+    $('#wdSeg').addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b) return; state.weekdayLang = b.dataset.v; renderWeekdayUI(); save(); requestRender(); });
     $('#colorGroups').addEventListener('click', (ev) => { const b = ev.target.closest('.swatch'); if (!b) return; state.color = b.dataset.id; renderColorUI(); save(); requestRender(); });
     [['ccBg', 'bg'], ['ccAccent', 'accent'], ['ccText', 'text']].forEach(([id, key]) => {
       $('#' + id).addEventListener('input', (ev) => {
@@ -619,6 +612,7 @@
     renderAll();
     bindEvents();
     requestRender();
+    save(); // 旧バージョンから移行した設定をこの時点で書き戻す
   }
   init();
 })();

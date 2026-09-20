@@ -48,7 +48,7 @@
         <button type="button" data-mode="week">1週間（7日）</button>
       </div>
       <div id="daysOpts" class="opts">
-        <p class="label">日数（今日を含めて最大7日）</p>
+        <p class="label">日数</p>
         <div class="seg" id="daysSeg"></div>
       </div>
       <div id="weekOpts" class="opts" hidden>
@@ -63,43 +63,13 @@
       <p class="range"><span id="rangeLabel"></span></p>
     </section>
 
-    <section class="card" id="sec-schedule">
-      <h2><span class="num">2</span>スケジュール入力</h2>
-      <div class="bulk">
-        <p class="label">まとめて入力（各日の1枠目に入ります）</p>
-        <div class="bulk-times">
-          <span class="tfield"><span>開始</span><span id="bulkStart"></span></span>
-          <span class="tilde">～</span>
-          <span class="tfield"><span>終了（任意）</span><span id="bulkEnd"></span></span>
-        </div>
-        <div class="bulk-actions">
-          <button type="button" class="btn small" id="applyAll">全日に適用</button>
-          <button type="button" class="btn small" id="copyPrev">前の週からコピー</button>
-          <button type="button" class="btn small danger" id="clearAll">この期間をクリア</button>
-        </div>
-      </div>
-      <div id="dayList" class="day-list"></div>
-      <p class="hint">分は10分刻み。24〜29時は深夜（翌0〜5時）の表記です。終了が空欄のときは「21:00頃～」のように表示されます。1日に最大3枠（朝配信・夜配信など）まで追加できます。</p>
-    </section>
-
     <section class="card" id="sec-design">
-      <h2><span class="num">3</span>デザイン</h2>
+      <h2><span class="num">2</span>デザイン</h2>
 
       <div class="sub">
         <div class="sub-head"><span class="sub-title"><span class="ico">🖼</span>レイアウト</span><span class="sub-value" id="layoutName"></span></div>
         <div class="sub-body">
           <div class="layout-grid" id="layoutGrid"></div>
-        </div>
-      </div>
-
-      <div class="sub">
-        <div class="sub-head"><span class="sub-title"><span class="ico">📅</span>曜日の表記</span><span class="sub-value" id="wdName"></span></div>
-        <div class="sub-body">
-          <div class="seg" id="wdSeg">
-            <button type="button" data-v="auto">自動</button>
-            <button type="button" data-v="ja">日本語（月・火…）</button>
-            <button type="button" data-v="en">英語（MON・TUE…）</button>
-          </div>
         </div>
       </div>
 
@@ -121,6 +91,26 @@
           <div id="fontGroups"></div>
         </div>
       </div>
+
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">📅</span>曜日の表記</span><span class="sub-value" id="wdName"></span></div>
+        <div class="sub-body">
+          <div class="seg" id="wdSeg">
+            <button type="button" data-v="ja">日本語（月・火…）</button>
+            <button type="button" data-v="en">英語（MON・TUE…）</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="sec-schedule">
+      <h2><span class="num">3</span>スケジュール入力</h2>
+      <div class="day-actions">
+        <button type="button" class="btn small" id="copyPrev">前の週からコピー</button>
+        <button type="button" class="btn small danger" id="clearAll">この期間をクリア</button>
+      </div>
+      <div id="dayList" class="day-list"></div>
+      <p class="hint">終了が空欄のときは「21:00頃～」のように表示されます。</p>
     </section>
 
     <section class="card" id="sec-text">
