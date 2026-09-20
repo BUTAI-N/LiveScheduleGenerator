@@ -90,6 +90,9 @@
   const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
   const WEEKDAY_EN = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
+  // ---- 配信内容のプリセット（ドロップダウンの並び順）------------------------
+  const MEMO_PRESETS = ['雑談', 'ゲーム', '作業', '歌枠', 'ASMR'];
+
   // Google Fonts の読み込みURL（全フォントを1リクエストで）
   function googleFontsUrl() {
     const fams = FONTS.map((f) => {
@@ -101,6 +104,6 @@
 
   global.Presets = {
     SIZES, SAFE_ZONE, FONT_GROUPS, FONTS, COLOR_GROUPS, COLORS, LAYOUTS,
-    WEEKDAY_JA, WEEKDAY_EN, googleFontsUrl,
+    WEEKDAY_JA, WEEKDAY_EN, MEMO_PRESETS, googleFontsUrl,
   };
 })(window);

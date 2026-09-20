@@ -7,6 +7,8 @@
   const P = window.Presets;
   const R = window.Renderer;
   const { SIZES, SAFE_ZONE, FONT_GROUPS, FONTS, COLOR_GROUPS, COLORS, LAYOUTS, WEEKDAY_JA } = P;
+  // 古い presets.js がキャッシュされていても落ちないよう、既定値を持っておく
+  const MEMO_PRESETS = P.MEMO_PRESETS || ['雑談', 'ゲーム', '作業', '歌枠', 'ASMR'];
   const { isDark, mix, clamp } = R.util;
 
   const STORAGE_KEY = 'butai_live_schedule_v1';
@@ -280,15 +282,25 @@
   }
 
   /* ---------- UI: スケジュール入力 ---------- */
+  // 配信内容のドロップダウン。プリセット以外の文字が入っていれば「カスタム」を選択状態にする
+  function memoSelectHTML(memo) {
+    const isCustom = !!memo && !MEMO_PRESETS.includes(memo);
+    const opts = ['<option value="">（内容なし）</option>']
+      .concat(MEMO_PRESETS.map((p) => `<option value="${escapeHtml(p)}"${memo === p ? ' selected' : ''}>${escapeHtml(p)}</option>`))
+      .concat([`<option value="__custom__"${isCustom ? ' selected' : ''}>カスタム（自由入力）</option>`]);
+    return `<select class="in-memo-sel" aria-label="配信内容">${opts.join('')}</select>`;
+  }
   function slotHTML(sl, idx, count) {
+    const isCustom = !!sl.memo && !MEMO_PRESETS.includes(sl.memo);
     return `<div class="slot" data-idx="${idx}">
       <div class="slot-times">
         ${tpHTML('tp-start', sl.start)}<span class="tilde">～</span>${tpHTML('tp-end', sl.end)}
       </div>
       <div class="slot-memo">
-        <input type="text" class="in-memo" maxlength="40" placeholder="内容（任意）例：歌枠 / 雑談 / ゲーム" value="${escapeHtml(sl.memo)}">
+        ${memoSelectHTML(sl.memo)}
         ${count > 1 ? '<button type="button" class="slot-del" aria-label="この枠を削除" title="この枠を削除">×</button>' : ''}
       </div>
+      <input type="text" class="in-memo" maxlength="40" placeholder="内容を入力（例：コラボ配信）" value="${escapeHtml(isCustom ? sl.memo : '')}"${isCustom ? '' : ' hidden'}>
     </div>`;
   }
   function rowHTML(day) {
@@ -503,11 +515,27 @@
     // 入力（イベント委譲：入力中はリストを作り直さない）
     const list = $('#dayList');
     list.addEventListener('change', (ev) => {
-      const tp = ev.target.closest('.tp'); if (!tp) return;
       const row = ev.target.closest('.day-row'), slot = ev.target.closest('.slot');
       if (!row || !slot) return;
-      const val = tpRead(tp);
-      updateSlot(row.dataset.key, Number(slot.dataset.idx), tp.classList.contains('tp-start') ? { start: val } : { end: val });
+      const key = row.dataset.key, idx = Number(slot.dataset.idx);
+      const tp = ev.target.closest('.tp');
+      if (tp) {
+        const val = tpRead(tp);
+        updateSlot(key, idx, tp.classList.contains('tp-start') ? { start: val } : { end: val });
+      } else if (ev.target.classList.contains('in-memo-sel')) {
+        const input = slot.querySelector('.in-memo');
+        if (ev.target.value === '__custom__') {
+          // カスタム：自由入力欄を出して、そこに入力した文字をそのまま内容にする
+          input.hidden = false;
+          input.value = '';
+          updateSlot(key, idx, { memo: '' });
+          input.focus();
+        } else {
+          input.hidden = true;
+          input.value = '';
+          updateSlot(key, idx, { memo: ev.target.value });
+        }
+      } else return;
       save(); requestRender();
     });
     list.addEventListener('input', (ev) => {

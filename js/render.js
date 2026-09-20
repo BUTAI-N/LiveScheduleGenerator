@@ -234,58 +234,34 @@
     }
 
     if (slots.length === 1) {
-      // 1枠：時間を大きく、内容はその下に
-      const time = timeLabel(slots[0], model.koro);
-      const memo = (slots[0].memo || '').trim();
-      if (time && memo) {
-        const tSize = fitSize(ctx, time, areaW, 72 * u * s, 26 * u, font);
-        const mSize = Math.max(22 * u, Math.min(38 * u * s, tSize * 0.55));
-        const gap = 7 * u;
-        const totalH = tSize + gap + mSize;
-        const tY = cy - totalH / 2 + tSize / 2;
-        const mY = tY + tSize / 2 + gap + mSize / 2;
-        ctx.font = fontString(font, tSize);
-        ctx.fillStyle = pal.text;
-        ctx.fillText(time, x, tY + tSize * 0.04);
-        ctx.font = fontString(font, mSize);
-        ctx.fillStyle = pal.sub;
-        ctx.fillText(ellipsize(ctx, memo, areaW), x, mY + mSize * 0.04);
-      } else if (time) {
-        const tSize = fitSize(ctx, time, areaW, 78 * u * s, 26 * u, font);
-        ctx.fillStyle = pal.text;
-        ctx.fillText(time, x, cy + tSize * 0.04);
-      } else {
-        const mSize = fitSize(ctx, memo, areaW, 54 * u * s, 22 * u, font);
-        ctx.fillStyle = pal.text;
-        ctx.fillText(ellipsize(ctx, memo, areaW), x, cy + mSize * 0.04);
-      }
+      // 1枠：「内容（時間）」を1行で大きく
+      const text = slotText(slots[0], model.koro);
+      const size = fitSize(ctx, text, areaW, 66 * u * s, 24 * u, font);
+      ctx.fillStyle = pal.text;
+      ctx.fillText(ellipsize(ctx, text, areaW), x, cy + size * 0.04);
       return;
     }
 
-    // 複数枠（朝配信・夜配信など）：1枠1行で「内容　時間」を右揃えに
+    // 複数枠（朝配信・夜配信など）：1枠1行で「内容（時間）」を右揃えに
     const n = slots.length;
     const pad = 8 * u;
     const lineH = (rh - pad * 2) / n;
-    const tBase = clamp(lineH * 0.66, 20 * u, 58 * u * s);
+    const base = clamp(lineH * 0.66, 20 * u, 56 * u * s);
     slots.forEach((sl, i) => {
       const ly = cy - rh / 2 + pad + lineH * (i + 0.5);
-      const time = timeLabel(sl, model.koro);
-      const memo = (sl.memo || '').trim();
-      let tw = 0, tSize = tBase;
-      if (time) {
-        tSize = fitSize(ctx, time, memo ? areaW * 0.74 : areaW, tBase, 18 * u, font);
-        tw = ctx.measureText(time).width;
-        ctx.fillStyle = pal.text;
-        ctx.fillText(time, x, ly + tSize * 0.04);
-      }
-      if (memo) {
-        const mSize = Math.max(18 * u, tBase * 0.62);
-        ctx.font = fontString(font, mSize);
-        ctx.fillStyle = time ? pal.sub : pal.text;
-        const gapX = time ? 16 * u : 0;
-        ctx.fillText(ellipsize(ctx, memo, areaW - tw - gapX), x - tw - gapX, ly + mSize * 0.04);
-      }
+      const text = slotText(sl, model.koro);
+      const size = fitSize(ctx, text, areaW, base, 18 * u, font);
+      ctx.fillStyle = pal.text;
+      ctx.fillText(ellipsize(ctx, text, areaW), x, ly + size * 0.04);
     });
+  }
+
+  // 1枠分の表示文字列：「雑談（20:00頃～）」。時間だけ／内容だけの場合はそのまま
+  function slotText(sl, koro) {
+    const time = timeLabel(sl, koro);
+    const memo = (sl.memo || '').trim();
+    if (memo && time) return `${memo}（${time}）`;
+    return memo || time;
   }
 
   /* ============================================================
@@ -702,7 +678,7 @@
 
   // フォント読み込み用：描画に使う文字を集める
   function collectText(model) {
-    const parts = [model.title, model.subtitle, model.note, model.offLabel, '未定頃', '0123456789:～〜/.()- …'];
+    const parts = [model.title, model.subtitle, model.note, model.offLabel, '未定頃', '0123456789:～〜/.()（）- …'];
     parts.push(global.Presets.WEEKDAY_JA.join(''), global.Presets.WEEKDAY_EN.join(''));
     model.days.forEach((d) => {
       (d.entry.slots || []).forEach((sl) => { parts.push(sl.memo || '', sl.start || '', sl.end || ''); });
