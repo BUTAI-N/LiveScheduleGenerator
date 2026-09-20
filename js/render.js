@@ -256,11 +256,11 @@
     });
   }
 
-  // 1枠分の表示文字列：「雑談（20:00頃～）」。時間だけ／内容だけの場合はそのまま
+  // 1枠分の表示文字列：「雑談 20:00頃～」。時間だけ／内容だけの場合はそのまま
   function slotText(sl, koro) {
     const time = timeLabel(sl, koro);
     const memo = (sl.memo || '').trim();
-    if (memo && time) return `${memo}（${time}）`;
+    if (memo && time) return `${memo} ${time}`;
     return memo || time;
   }
 
@@ -378,10 +378,10 @@
 
       // 曜日（上）＋日付（下）
       const cy = ry + rh / 2;
-      const labelRight = drawDayLabel(g, day, rx + 32 * u, cy, rh, s, 'circle');
+      const labelRight = drawDayLabel(g, day, rx + 22 * u, cy, rh, s, 'circle');
 
       // 時間・内容
-      drawTimeBlock(g, e, labelRight + 26 * u, rx + rw - 38 * u, cy, rh, s);
+      drawTimeBlock(g, e, labelRight + 16 * u, rx + rw - 26 * u, cy, rh, s);
     });
 
     // ---- フッター ----
@@ -523,9 +523,9 @@
 
       // 曜日（上）＋日付（下）
       const cy = ry + rh / 2;
-      const labelRight = drawDayLabel(g, day, rx + skew + 28 * u, cy, rh, s, 'tag');
+      const labelRight = drawDayLabel(g, day, rx + skew + 18 * u, cy, rh, s, 'tag');
 
-      drawTimeBlock(g, e, labelRight + 26 * u, rx + rw - skew - 30 * u, cy, rh, s);
+      drawTimeBlock(g, e, labelRight + 16 * u, rx + rw - skew - 20 * u, cy, rh, s);
     });
 
     if (model.note) {
@@ -607,9 +607,9 @@
       ctx.fillRect(padX, ry + rh - 2 * u, contentW, 2 * u);
 
       // 曜日（上）＋日付（下）
-      const labelRight = drawDayLabel(g, day, padX + 6 * u, cy, rh, s, 'text');
+      const labelRight = drawDayLabel(g, day, padX + 2 * u, cy, rh, s, 'text');
 
-      drawTimeBlock(g, e, labelRight + 26 * u, padX + contentW - 6 * u, cy, rh, s);
+      drawTimeBlock(g, e, labelRight + 16 * u, padX + contentW - 2 * u, cy, rh, s);
     });
 
     if (model.note) {
@@ -678,7 +678,7 @@
 
   // フォント読み込み用：描画に使う文字を集める
   function collectText(model) {
-    const parts = [model.title, model.subtitle, model.note, model.offLabel, '未定頃', '0123456789:～〜/.()（）- …'];
+    const parts = [model.title, model.subtitle, model.note, model.offLabel, '未定頃', '0123456789:～〜/.()- …'];
     parts.push(global.Presets.WEEKDAY_JA.join(''), global.Presets.WEEKDAY_EN.join(''));
     model.days.forEach((d) => {
       (d.entry.slots || []).forEach((sl) => { parts.push(sl.memo || '', sl.start || '', sl.end || ''); });
