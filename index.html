@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- ?v= は更新時にまとめて上げる。CSS/JSがバラバラにキャッシュされて壊れるのを防ぐ -->
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 <header class="topbar">
@@ -31,7 +31,7 @@
       </div>
     </div>
     <div class="preview-tools card">
-      <label class="check"><input type="checkbox" id="showSafeZone"><span>セーフゾーンを表示（書き出し画像には含まれません）</span></label>
+      <label class="check"><input type="checkbox" id="showSafeZone"><span>セーフゾーンを表示</span></label>
       <label class="field-row"><span>書き出しサイズ</span><select id="sizeSel"></select></label>
       <p class="hint" id="sizeNote"></p>
       <button class="btn primary big" id="exportBtn" type="button">画像を保存（PNG）</button>
@@ -90,6 +90,17 @@
         <div class="sub-head"><span class="sub-title"><span class="ico">🔤</span>フォント</span><span class="sub-value" id="fontDesc"></span></div>
         <div class="sub-body">
           <div id="fontGroups"></div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="sub-head"><span class="sub-title"><span class="ico">🕐</span>時間の表記</span><span class="sub-value" id="hourStyleSample"></span></div>
+        <div class="sub-body">
+          <div class="seg" id="hourStyleSeg">
+            <button type="button" data-v="hm">20:00</button>
+            <button type="button" data-v="hour">20時</button>
+          </div>
+          <p class="hint">「20時」を選ぶと、分が00のときだけ「20時」と表示します。20:30のように分があるときはそのままです。</p>
         </div>
       </div>
 
@@ -159,8 +170,8 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="js/presets.js?v=5"></script>
-<script src="js/render.js?v=5"></script>
-<script src="js/app.js?v=5"></script>
+<script src="js/presets.js?v=6"></script>
+<script src="js/render.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>

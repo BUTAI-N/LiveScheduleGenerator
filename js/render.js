@@ -137,13 +137,17 @@
     return { rows, unit, scale: clamp(unit / (150 * g.u), 0.6, 1.25) };
   }
 
-  function formatTime(t) {
+  // hourOnly: 分が00のときだけ「20時」と書く（20:30 はそのまま）
+  function formatTime(t, hourOnly) {
     if (!t) return '';
-    return /^0\d:/.test(t) ? t.slice(1) : t; // 09:00 → 9:00
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+    if (!m) return t;
+    const h = String(parseInt(m[1], 10)); // 09:00 → 9:00
+    return hourOnly && m[2] === '00' ? `${h}時` : `${h}:${m[2]}`;
   }
   // koro: 'both'（開始・終了に頃） | 'start'（開始のみ） | 'none'
-  function timeLabel(slot, koro) {
-    const s = formatTime(slot.start), en = formatTime(slot.end);
+  function timeLabel(slot, koro, hourOnly) {
+    const s = formatTime(slot.start, hourOnly), en = formatTime(slot.end, hourOnly);
     if (!s) return '';
     const k1 = koro === 'none' ? '' : '頃';
     const k2 = koro === 'both' ? '頃' : '';
@@ -158,6 +162,10 @@
   function slotCount(e) { return e.off ? 1 : Math.max(1, activeSlots(e).length); }
   function rowWeights(days) { return days.map((d) => 1 + 0.55 * (slotCount(d.entry) - 1)); }
 
+  // 文字サイズの調整倍率（1 = 以前の大きさ）
+  const DATE_SCALE = 0.8; // 各日の日付
+  const TIME_SCALE = 0.8; // 配信時間・内容（「おやすみ」「未定」も同じ列なので揃える）
+
   // 曜日（上）＋日付（下）を縦に並べて描き、コンテンツ領域の左端になる x を返す
   // style: 'circle'（丸バッジ） | 'tag'（斜めタグ） | 'text'（文字のみ）
   function drawDayLabel(g, day, leftX, cy, rh, s, style) {
@@ -166,7 +174,7 @@
     const dim = day.entry.off;
 
     const wdBoxH = Math.max(Math.min(rh * 0.42, 66 * u * s), 30 * u);
-    const dateSize = Math.max(Math.min(rh * 0.30, 54 * u * s), 22 * u);
+    const dateSize = Math.max(Math.min(rh * 0.30, 54 * u * s), 22 * u) * DATE_SCALE;
     const gap = 5 * u;
     const top = cy - (wdBoxH + gap + dateSize) / 2;
 
@@ -219,14 +227,14 @@
     ctx.textBaseline = 'middle';
 
     if (e.off) {
-      const size = fitSize(ctx, model.offLabel, areaW, 58 * u * s, 22 * u, font);
+      const size = fitSize(ctx, model.offLabel, areaW, 58 * u * s * TIME_SCALE, 22 * u * TIME_SCALE, font);
       ctx.fillStyle = pal.sub;
       ctx.fillText(model.offLabel, x, cy + size * 0.04);
       return;
     }
     const slots = activeSlots(e);
     if (slots.length === 0) {
-      const size = 44 * u * s;
+      const size = 44 * u * s * TIME_SCALE;
       ctx.font = fontString(font, size);
       ctx.fillStyle = pal.sub;
       ctx.fillText('未定', x, cy + size * 0.04);
@@ -235,8 +243,8 @@
 
     if (slots.length === 1) {
       // 1枠：「内容（時間）」を1行で大きく
-      const text = slotText(slots[0], model.koro);
-      const size = fitSize(ctx, text, areaW, 66 * u * s, 24 * u, font);
+      const text = slotText(slots[0], model);
+      const size = fitSize(ctx, text, areaW, 66 * u * s * TIME_SCALE, 24 * u * TIME_SCALE, font);
       ctx.fillStyle = pal.text;
       ctx.fillText(ellipsize(ctx, text, areaW), x, cy + size * 0.04);
       return;
@@ -246,19 +254,19 @@
     const n = slots.length;
     const pad = 8 * u;
     const lineH = (rh - pad * 2) / n;
-    const base = clamp(lineH * 0.66, 20 * u, 56 * u * s);
+    const base = clamp(lineH * 0.66 * TIME_SCALE, 20 * u * TIME_SCALE, 56 * u * s * TIME_SCALE);
     slots.forEach((sl, i) => {
       const ly = cy - rh / 2 + pad + lineH * (i + 0.5);
-      const text = slotText(sl, model.koro);
-      const size = fitSize(ctx, text, areaW, base, 18 * u, font);
+      const text = slotText(sl, model);
+      const size = fitSize(ctx, text, areaW, base, 18 * u * TIME_SCALE, font);
       ctx.fillStyle = pal.text;
       ctx.fillText(ellipsize(ctx, text, areaW), x, ly + size * 0.04);
     });
   }
 
   // 1枠分の表示文字列：「雑談 20:00頃～」。時間だけ／内容だけの場合はそのまま
-  function slotText(sl, koro) {
-    const time = timeLabel(sl, koro);
+  function slotText(sl, model) {
+    const time = timeLabel(sl, model.koro, model.hourStyle === 'hour');
     const memo = (sl.memo || '').trim();
     if (memo && time) return `${memo} ${time}`;
     return memo || time;
@@ -625,7 +633,7 @@
 
   /* ============================================================
      エントリーポイント
-     model = { size:{w,h,story}, pal, font, layout, koro,
+     model = { size:{w,h,story}, pal, font, layout, koro, hourStyle,
                days:[{m,d,dow,weekend,entry:{off,slots:[{start,end,memo}]}}],
                title, subtitle, note, offLabel, weekdayLang }
      ============================================================ */
@@ -678,7 +686,7 @@
 
   // フォント読み込み用：描画に使う文字を集める
   function collectText(model) {
-    const parts = [model.title, model.subtitle, model.note, model.offLabel, '未定頃', '0123456789:～〜/.()- …'];
+    const parts = [model.title, model.subtitle, model.note, model.offLabel, '未定頃時', '0123456789:～〜/.()- …'];
     parts.push(global.Presets.WEEKDAY_JA.join(''), global.Presets.WEEKDAY_EN.join(''));
     model.days.forEach((d) => {
       (d.entry.slots || []).forEach((sl) => { parts.push(sl.memo || '', sl.start || '', sl.end || ''); });
