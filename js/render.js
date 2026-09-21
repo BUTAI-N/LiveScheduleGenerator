@@ -121,22 +121,7 @@
     if ('letterSpacing' in ctx) { try { ctx.letterSpacing = `${px}px`; } catch (e) { /* noop */ } }
   }
 
-  /* ---------- 共通部品 ---------- */
-  // 行の高さ・開始位置を計算。weights が大きい行（枠が多い日）ほど高くする。
-  // 少ない日数のときは大きめの行で上下中央に。
-  function rowGeometry(g, top, bottom, weights, gapU, maxRowU) {
-    const n = weights.length;
-    const gap = gapU * g.u;
-    const avail = Math.max(0, bottom - top);
-    const sumW = weights.reduce((a, b) => a + b, 0) || 1;
-    let unit = (avail - gap * (n - 1)) / sumW;
-    unit = Math.min(unit, maxRowU * g.u);
-    const total = unit * sumW + gap * (n - 1);
-    let y = top + (avail - total) / 2;
-    const rows = weights.map((w) => { const r = { y, h: unit * w }; y += unit * w + gap; return r; });
-    return { rows, unit, scale: clamp(unit / (150 * g.u), 0.6, 1.25) };
-  }
-
+  /* ---------- 時刻・枠のテキスト ---------- */
   // hourOnly: 分が00のときだけ「20時」と書く（20:30 はそのまま）
   function formatTime(t, hourOnly) {
     if (!t) return '';
@@ -159,117 +144,219 @@
       .filter((sl) => sl.start || (sl.memo || '').trim())
       .sort((a, b) => (a.start || '99:99').localeCompare(b.start || '99:99'));
   }
-  function slotCount(e) { return e.off ? 1 : Math.max(1, activeSlots(e).length); }
-  function rowWeights(days) { return days.map((d) => 1 + 0.55 * (slotCount(d.entry) - 1)); }
-
-  // 文字サイズの調整倍率（1 = 以前の大きさ）
-  const DATE_SCALE = 0.8; // 各日の日付
-  const TIME_SCALE = 0.8; // 配信時間・内容（「おやすみ」「未定」も同じ列なので揃える）
-
-  // 曜日（上）＋日付（下）を縦に並べて描き、コンテンツ領域の左端になる x を返す
-  // style: 'circle'（丸バッジ） | 'tag'（斜めタグ） | 'text'（文字のみ）
-  function drawDayLabel(g, day, leftX, cy, rh, s, style) {
-    const { ctx, u, pal, font } = g;
-    const badge = day.weekend ? pal.accent2 : pal.accent;
-    const dim = day.entry.off;
-
-    const wdBoxH = Math.max(Math.min(rh * 0.42, 66 * u * s), 30 * u);
-    const dateSize = Math.max(Math.min(rh * 0.30, 54 * u * s), 22 * u) * DATE_SCALE;
-    const gap = 5 * u;
-    const top = cy - (wdBoxH + gap + dateSize) / 2;
-
-    ctx.font = fontString(font, dateSize);
-    const dateW = ctx.measureText(day.dateText).width;
-    const wdSize = g.lang === 'en' ? wdBoxH * 0.46 : wdBoxH * 0.62;
-    ctx.font = fontString(font, wdSize);
-    const wdBoxW = style === 'text'
-      ? ctx.measureText(day.wd).width
-      : Math.max(wdBoxH, ctx.measureText(day.wd).width + 22 * u);
-
-    const colW = Math.max(wdBoxW, dateW);
-    const cx = leftX + colW / 2;
-    const wdCy = top + wdBoxH / 2;
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // 曜日
-    if (style === 'circle') {
-      ctx.fillStyle = dim ? rgba(badge, 0.45) : badge;
-      if (wdBoxW <= wdBoxH + 1) { ctx.beginPath(); ctx.arc(cx, wdCy, wdBoxH / 2, 0, Math.PI * 2); ctx.fill(); }
-      else { roundRect(ctx, cx - wdBoxW / 2, top, wdBoxW, wdBoxH, wdBoxH / 2); ctx.fill(); }
-      ctx.fillStyle = onColor(badge);
-    } else if (style === 'tag') {
-      ctx.fillStyle = dim ? rgba(badge, 0.5) : badge;
-      skewRect(ctx, cx - wdBoxW / 2, top, wdBoxW, wdBoxH, 7 * u);
-      ctx.fill();
-      ctx.fillStyle = onColor(badge);
-    } else {
-      ctx.fillStyle = dim ? rgba(badge, 0.6) : badge;
-    }
-    ctx.font = fontString(font, wdSize);
-    ctx.fillText(day.wd, cx, wdCy + wdSize * 0.05);
-
-    // 日付
-    ctx.font = fontString(font, dateSize);
-    ctx.fillStyle = dim ? pal.sub : pal.text;
-    ctx.fillText(day.dateText, cx, top + wdBoxH + gap + dateSize / 2 + dateSize * 0.05);
-
-    return leftX + colW;
-  }
-
-  // 時間＋内容（または「休み」「未定」）を右揃えで描く
-  function drawTimeBlock(g, e, left, right, cy, rh, s) {
-    const { ctx, u, pal, font, model } = g;
-    const areaW = Math.max(40 * u, right - left);
-    const x = right;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-
-    if (e.off) {
-      const size = fitSize(ctx, model.offLabel, areaW, 58 * u * s * TIME_SCALE, 22 * u * TIME_SCALE, font);
-      ctx.fillStyle = pal.sub;
-      ctx.fillText(model.offLabel, x, cy + size * 0.04);
-      return;
-    }
-    const slots = activeSlots(e);
-    if (slots.length === 0) {
-      const size = 44 * u * s * TIME_SCALE;
-      ctx.font = fontString(font, size);
-      ctx.fillStyle = pal.sub;
-      ctx.fillText('未定', x, cy + size * 0.04);
-      return;
-    }
-
-    if (slots.length === 1) {
-      // 1枠：「内容（時間）」を1行で大きく
-      const text = slotText(slots[0], model);
-      const size = fitSize(ctx, text, areaW, 66 * u * s * TIME_SCALE, 24 * u * TIME_SCALE, font);
-      ctx.fillStyle = pal.text;
-      ctx.fillText(ellipsize(ctx, text, areaW), x, cy + size * 0.04);
-      return;
-    }
-
-    // 複数枠（朝配信・夜配信など）：1枠1行で「内容（時間）」を右揃えに
-    const n = slots.length;
-    const pad = 8 * u;
-    const lineH = (rh - pad * 2) / n;
-    const base = clamp(lineH * 0.66 * TIME_SCALE, 20 * u * TIME_SCALE, 56 * u * s * TIME_SCALE);
-    slots.forEach((sl, i) => {
-      const ly = cy - rh / 2 + pad + lineH * (i + 0.5);
-      const text = slotText(sl, model);
-      const size = fitSize(ctx, text, areaW, base, 18 * u * TIME_SCALE, font);
-      ctx.fillStyle = pal.text;
-      ctx.fillText(ellipsize(ctx, text, areaW), x, ly + size * 0.04);
-    });
-  }
-
   // 1枠分の表示文字列：「雑談 20:00頃～」。時間だけ／内容だけの場合はそのまま
   function slotText(sl, model) {
     const time = timeLabel(sl, model.koro, model.hourStyle === 'hour');
     const memo = (sl.memo || '').trim();
     if (memo && time) return `${memo} ${time}`;
     return memo || time;
+  }
+
+  /* ---------- 行レイアウトの自動調整 ----------
+     予定が詰まっても文字が小さくなりすぎたり、空白が目立ったりしないように：
+      1. 全行で共通の文字サイズ f を、上限から下げながら「全部収まる」最大値にする
+      2. 1日に複数枠あるときは横に並べられるだけ並べ、入らない分だけ折り返す
+      3. 曜日・日付ラベルは「縦積み」と「横並び」を両方試し、f を大きく取れる方を使う
+      4. 余った高さは各行に均等に配り（1行の上限あり）、ブロック全体を上下中央に置く
+      5. 内容は行の中で中央寄せ（短い予定でも左右の空白が偏らない）
+  ------------------------------------------------- */
+  const LINE_H = 1.28;  // 行送り（f 倍）
+  const ITEM_GAP = 0.9; // 同じ行に並ぶ枠と枠の間隔（f 倍）
+  const MAX_F = 54;     // 文字サイズの上限（u 倍）
+  const MIN_F = 16;     // 文字サイズの下限（u 倍）
+  const PAD_Y = 18;     // 行の上下の余白（u 倍）
+
+  // 各日の表示テキスト（休み・未定は1項目、薄い色）
+  function dayItems(g) {
+    return g.days.map((d) => {
+      if (d.entry.off) return { texts: [g.model.offLabel], muted: true };
+      const sl = activeSlots(d.entry);
+      if (!sl.length) return { texts: ['未定'], muted: true };
+      return { texts: sl.map((s) => slotText(s, g.model)), muted: false };
+    });
+  }
+
+  // ラベル（曜日＋日付）の寸法。mode: 'stack'（縦積み）| 'row'（横並び）
+  // style: 'circle'（丸バッジ）| 'tag'（斜めタグ）| 'text'（文字のみ）
+  function measureLabel(g, f, mode, style) {
+    const { ctx, u, font, days } = g;
+    const wdBoxH = clamp(f * 1.05, 30 * u, 62 * u);
+    const dateSize = clamp(f * 0.8, 20 * u, 44 * u);
+    const wdSize = g.lang === 'en' ? wdBoxH * 0.46 : wdBoxH * 0.62;
+    ctx.font = fontString(font, wdSize);
+    const wdW = Math.max(...days.map((d) => ctx.measureText(d.wd).width));
+    const wdBoxW = style === 'text' ? wdW : Math.max(wdBoxH, wdW + 22 * u);
+    ctx.font = fontString(font, dateSize);
+    const dateW = Math.max(...days.map((d) => ctx.measureText(d.dateText).width));
+    const gap = (mode === 'stack' ? 5 : 10) * u;
+    const base = { mode, style, wdBoxH, wdBoxW, wdSize, dateSize, dateW, gap };
+    return mode === 'stack'
+      ? Object.assign(base, { w: Math.max(wdBoxW, dateW), h: wdBoxH + gap + dateSize })
+      : Object.assign(base, { w: wdBoxW + gap + dateW, h: Math.max(wdBoxH, dateSize * 1.15) });
+  }
+
+  // 枠の幅の配列を、contentW に入るだけ横に並べて行に分ける（貪欲法）
+  function packLines(widths, f, contentW) {
+    const lines = [];
+    let cur = [], curW = 0;
+    widths.forEach((w, i) => {
+      const add = cur.length ? ITEM_GAP * f + w : w;
+      if (cur.length && curW + add > contentW) { lines.push(cur); cur = []; curW = 0; }
+      cur.push(i);
+      curW += cur.length > 1 ? ITEM_GAP * f + w : w;
+    });
+    if (cur.length) lines.push(cur);
+    return lines;
+  }
+
+  // 行の並びを決める。rowLeft はラベル左端、rowRight は内容右端の x
+  // opt: { gapU, maxRowU, labelStyle, labelGapU }
+  function planRows(g, top, bottom, rowLeft, rowRight, opt) {
+    const { ctx, u, font } = g;
+    const items = dayItems(g);
+    const n = items.length;
+    const gap = opt.gapU * u;
+    const availH = Math.max(0, bottom - top);
+    const padY = PAD_Y * u;
+    const minF = MIN_F * u;
+
+    // 文字サイズ f とラベル形式 mode で各行を組む。収まらなければ null（force 時は無理やり組む）
+    // packMode: 'one'（1日の枠を必ず1行に並べる）| 'pack'（入るだけ並べ、あとは折り返す）
+    const build = (f, mode, packMode, force) => {
+      const lab = measureLabel(g, f, mode, opt.labelStyle);
+      const contentLeft = rowLeft + lab.w + opt.labelGapU * u;
+      const contentW = rowRight - contentLeft;
+      if (contentW < 120 * u && !force) return null;
+      ctx.font = fontString(font, f);
+      const lineH = f * LINE_H;
+      const rows = [];
+      let total = 0;
+      for (const it of items) {
+        let widths = it.texts.map((t) => ctx.measureText(t).width);
+        if (widths.some((w) => w > contentW)) {
+          if (!force) return null;                             // 1枠でも入らない → f を下げる
+          widths = widths.map((w) => Math.min(w, contentW));   // 描画時に省略記号
+        }
+        let lines;
+        if (packMode === 'one') {
+          const oneW = widths.reduce((a, w) => a + w, 0) + ITEM_GAP * f * (widths.length - 1);
+          if (oneW > contentW && !force) return null;               // 1行に入らない → この f では不可
+          lines = [widths.map((_, i) => i)];
+        } else {
+          lines = packLines(widths, f, contentW);
+        }
+        const h = Math.max(padY * 2 + lines.length * lineH, lab.h + padY * 1.2);
+        rows.push({ texts: it.texts, muted: it.muted, widths, lines, h });
+        total += h;
+      }
+      if (!force && total + gap * (n - 1) > availH) return null;
+      return { f, lab, packMode, contentLeft, contentW: Math.max(contentW, 1), rows, total, lineH };
+    };
+    // ラベル形式ごとに、収まる最大の f を探す
+    const search = (mode, packMode) => {
+      for (let f = MAX_F * u; f >= minF; f -= Math.max(0.5 * u, f * 0.03)) {
+        const p = build(f, mode, packMode, false);
+        if (p) return p;
+      }
+      return null;
+    };
+    // 候補：ラベル形式（縦積み/横並び）× 並べ方（全日1行/折り返し）
+    const cand = (mode) => ({ one: search(mode, 'one'), pack: search(mode, 'pack') });
+    const S = cand('stack'), Rw = cand('row');
+    const best = (c) => c.pack || c.one; // 折り返し案は1行案を含むので、こちらが純粋な最大文字サイズ
+    // 1) ラベル形式：折り返し案同士で比べ、横並びは文字が8%以上大きく取れるときだけ採用
+    let C = S;
+    if (best(Rw) && (!best(S) || best(Rw).f > best(S).f * 1.08)) C = Rw;
+    // 2) 並べ方：「全日1行」で揃えられて文字の縮小が1割以内なら、行が揃い横幅も使えるそちらを優先
+    let plan = C.pack;
+    if (C.one && (!plan || C.one.f >= plan.f * 0.9)) plan = C.one;
+    // 調整用の診断情報（Renderer.lastPlan で参照できる。文字サイズは u=1 換算）
+    const info = (p) => (p ? { f: p.f / u, pack: p.packMode, contentW: p.contentW / u, labelW: p.lab.w / u, lines: p.rows.map((r) => r.lines.length) } : null);
+    if (global.Renderer) global.Renderer.lastPlan = { availH: availH / u, stack: { one: info(S.one), pack: info(S.pack) }, row: { one: info(Rw.one), pack: info(Rw.pack) }, chosen: plan ? { label: plan.lab.mode, pack: plan.packMode, f: plan.f / u } : null };
+    if (!plan) {
+      // 最小サイズでも入らない（極端に小さいキャンバスなど）：行の高さを縮めて詰める
+      plan = build(minF, 'row', 'pack', true);
+      const room = availH - gap * (n - 1);
+      if (plan.total > room && plan.total > 0) {
+        const k = room / plan.total;
+        plan.rows.forEach((r) => { r.h *= k; });
+        plan.total = room;
+      }
+    }
+
+    // 余った高さを均等に配る（1行の高さには上限）。残りはブロック全体を上下中央に
+    const maxRow = opt.maxRowU * u;
+    const per = Math.max(0, availH - (plan.total + gap * (n - 1))) / n;
+    let used = 0;
+    plan.rows.forEach((r) => { r.h = Math.min(r.h + per, Math.max(maxRow, r.h)); used += r.h; });
+    let y = top + Math.max(0, availH - (used + gap * (n - 1))) / 2;
+    plan.rows.forEach((r) => { r.y = y; y += r.h + gap; });
+    return plan;
+  }
+
+  // 曜日＋日付ラベルを描く。x は左端、cy は行の中央
+  function drawLabel(g, day, x, cy, lab) {
+    const { ctx, u, pal, font } = g;
+    const badge = day.weekend ? pal.accent2 : pal.accent;
+    const dim = day.entry.off;
+    let wdCx, wdCy, dateX, dateY, dateAlign;
+    if (lab.mode === 'stack') {
+      const top = cy - lab.h / 2;
+      wdCx = x + lab.w / 2; wdCy = top + lab.wdBoxH / 2;
+      dateX = wdCx; dateY = top + lab.wdBoxH + lab.gap + lab.dateSize / 2; dateAlign = 'center';
+    } else {
+      wdCx = x + lab.wdBoxW / 2; wdCy = cy;
+      dateX = x + lab.wdBoxW + lab.gap; dateY = cy; dateAlign = 'left';
+    }
+    ctx.textBaseline = 'middle';
+    // 曜日
+    if (lab.style === 'circle') {
+      ctx.fillStyle = dim ? rgba(badge, 0.45) : badge;
+      if (lab.wdBoxW <= lab.wdBoxH + 1) { ctx.beginPath(); ctx.arc(wdCx, wdCy, lab.wdBoxH / 2, 0, Math.PI * 2); ctx.fill(); }
+      else { roundRect(ctx, wdCx - lab.wdBoxW / 2, wdCy - lab.wdBoxH / 2, lab.wdBoxW, lab.wdBoxH, lab.wdBoxH / 2); ctx.fill(); }
+      ctx.fillStyle = onColor(badge);
+    } else if (lab.style === 'tag') {
+      ctx.fillStyle = dim ? rgba(badge, 0.5) : badge;
+      skewRect(ctx, wdCx - lab.wdBoxW / 2, wdCy - lab.wdBoxH / 2, lab.wdBoxW, lab.wdBoxH, 7 * u);
+      ctx.fill();
+      ctx.fillStyle = onColor(badge);
+    } else {
+      ctx.fillStyle = dim ? rgba(badge, 0.6) : badge;
+    }
+    ctx.font = fontString(font, lab.wdSize);
+    ctx.textAlign = 'center';
+    ctx.fillText(day.wd, wdCx, wdCy + lab.wdSize * 0.05);
+    // 日付
+    ctx.font = fontString(font, lab.dateSize);
+    ctx.fillStyle = dim ? pal.sub : pal.text;
+    ctx.textAlign = dateAlign;
+    ctx.fillText(day.dateText, dateX, dateY + lab.dateSize * 0.05);
+  }
+
+  // 配信内容（複数枠は横並び、入らなければ折り返し）を行の中で中央寄せに描く
+  function drawContent(g, row, plan, cy) {
+    const { ctx, u, pal, font } = g;
+    const f = plan.f, lineH = plan.lineH;
+    ctx.font = fontString(font, f);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    let y = cy - (row.lines.length * lineH) / 2 + lineH / 2;
+    row.lines.forEach((line) => {
+      const lineW = line.reduce((a, i) => a + row.widths[i], 0) + ITEM_GAP * f * (line.length - 1);
+      let x = plan.contentLeft + (plan.contentW - lineW) / 2;
+      line.forEach((i, k) => {
+        if (k > 0) {
+          // 枠と枠の区切り（細い縦線）
+          ctx.fillStyle = rgba(pal.accent, 0.55);
+          ctx.fillRect(x - (ITEM_GAP * f) / 2 - 1.5 * u, y - f * 0.4, 3 * u, f * 0.8);
+        }
+        ctx.fillStyle = row.muted ? pal.sub : pal.text;
+        const text = row.widths[i] >= plan.contentW - 0.5 ? ellipsize(ctx, row.texts[i], plan.contentW) : row.texts[i];
+        ctx.fillText(text, x, y + f * 0.04);
+        x += row.widths[i] + ITEM_GAP * f;
+      });
+      y += lineH;
+    });
   }
 
   /* ============================================================
@@ -368,28 +455,23 @@
     if (model.note) footerTop -= footerH;
 
     // ---- 日付カード ----
-    const geo = rowGeometry(g, headerBottom, footerTop, rowWeights(days), 18, 210);
-    const s = geo.scale;
-    days.forEach((day, i) => {
-      const { y: ry, h: rh } = geo.rows[i];
-      const rx = padX, rw = contentW;
-      const e = day.entry;
+    const plan = planRows(g, headerBottom, footerTop, padX + 22 * u, padX + contentW - 26 * u,
+      { gapU: 18, maxRowU: 210, labelStyle: 'circle', labelGapU: 18 });
+    plan.rows.forEach((row, i) => {
+      const day = days[i], e = day.entry;
+      const ry = row.y, rh = row.h, cy = ry + rh / 2;
       // カード
       ctx.save();
       ctx.shadowColor = g.dark ? 'rgba(0,0,0,0.45)' : rgba(pal.accent, 0.22);
       ctx.shadowBlur = 24 * u;
       ctx.shadowOffsetY = 8 * u;
       ctx.fillStyle = e.off ? rgba(pal.card, 0.55) : pal.card;
-      roundRect(ctx, rx, ry, rw, rh, Math.min(40 * u, rh / 2));
+      roundRect(ctx, padX, ry, contentW, rh, Math.min(40 * u, rh / 2));
       ctx.fill();
       ctx.restore();
 
-      // 曜日（上）＋日付（下）
-      const cy = ry + rh / 2;
-      const labelRight = drawDayLabel(g, day, rx + 22 * u, cy, rh, s, 'circle');
-
-      // 時間・内容
-      drawTimeBlock(g, e, labelRight + 16 * u, rx + rw - 26 * u, cy, rh, s);
+      drawLabel(g, day, padX + 22 * u, cy, plan.lab);
+      drawContent(g, row, plan, cy);
     });
 
     // ---- フッター ----
@@ -502,13 +584,13 @@
     if (model.note) footerTop -= footerH;
 
     // ---- 日付カード（斜め） ----
-    const geo = rowGeometry(g, headerBottom, footerTop, rowWeights(days), 16, 200);
-    const s = geo.scale;
     const skew = 22 * u;
-    days.forEach((day, i) => {
-      const { y: ry, h: rh } = geo.rows[i];
+    const plan = planRows(g, headerBottom, footerTop, padX + skew + 18 * u, padX + contentW - skew - 20 * u,
+      { gapU: 16, maxRowU: 200, labelStyle: 'tag', labelGapU: 18 });
+    plan.rows.forEach((row, i) => {
+      const day = days[i], e = day.entry;
+      const ry = row.y, rh = row.h, cy = ry + rh / 2;
       const rx = padX, rw = contentW;
-      const e = day.entry;
       const badge = day.weekend ? pal.accent2 : pal.accent;
 
       ctx.save();
@@ -529,11 +611,8 @@
       ctx.fill();
       ctx.restore();
 
-      // 曜日（上）＋日付（下）
-      const cy = ry + rh / 2;
-      const labelRight = drawDayLabel(g, day, rx + skew + 18 * u, cy, rh, s, 'tag');
-
-      drawTimeBlock(g, e, labelRight + 16 * u, rx + rw - skew - 20 * u, cy, rh, s);
+      drawLabel(g, day, rx + skew + 18 * u, cy, plan.lab);
+      drawContent(g, row, plan, cy);
     });
 
     if (model.note) {
@@ -600,24 +679,21 @@
     if (model.note) footerTop -= footerH;
 
     // ---- 行（罫線区切り） ----
-    const geo = rowGeometry(g, headerBottom, footerTop, rowWeights(days), 0, 210);
-    const s = geo.scale;
+    const plan = planRows(g, headerBottom, footerTop, padX + 2 * u, padX + contentW - 2 * u,
+      { gapU: 0, maxRowU: 210, labelStyle: 'text', labelGapU: 18 });
     const line = rgba(pal.sub, 0.35);
-    if (geo.rows.length) {
+    if (plan.rows.length) {
       ctx.fillStyle = line;
-      ctx.fillRect(padX, geo.rows[0].y, contentW, 2 * u);
+      ctx.fillRect(padX, plan.rows[0].y, contentW, 2 * u);
     }
-    days.forEach((day, i) => {
-      const { y: ry, h: rh } = geo.rows[i];
-      const cy = ry + rh / 2;
-      const e = day.entry;
+    plan.rows.forEach((row, i) => {
+      const day = days[i];
+      const ry = row.y, rh = row.h, cy = ry + rh / 2;
       ctx.fillStyle = line;
       ctx.fillRect(padX, ry + rh - 2 * u, contentW, 2 * u);
 
-      // 曜日（上）＋日付（下）
-      const labelRight = drawDayLabel(g, day, padX + 2 * u, cy, rh, s, 'text');
-
-      drawTimeBlock(g, e, labelRight + 16 * u, padX + contentW - 2 * u, cy, rh, s);
+      drawLabel(g, day, padX + 2 * u, cy, plan.lab);
+      drawContent(g, row, plan, cy);
     });
 
     if (model.note) {
